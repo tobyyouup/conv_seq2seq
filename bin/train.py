@@ -40,9 +40,6 @@ from seq2seq.metrics import metric_specs
 from seq2seq.training import hooks
 from seq2seq.training import utils as training_utils
 
-from pycallgraph import PyCallGraph
-from pycallgraph.output import GraphvizOutput
-
 tf.flags.DEFINE_string("config_paths", "",
                        """Path to a YAML configuration files defining FLAG
                        values. Multiple files can be separated by commas.

@@ -82,7 +82,7 @@ class Seq2SeqModel(ModelBase):
       variables.append(variable)
     return list(zip(clipped_gradients, variables))
 
-  def _create_predictions(self, decoder_output, features, labels, losses=None, is_time_major=False):
+  def _create_predictions(self, decoder_output, features, labels, losses=None):
     """Creates the dictionary of predictions that is returned by the model.
     """
     predictions = {}
@@ -279,8 +279,6 @@ class Seq2SeqModel(ModelBase):
     """
     #pylint: disable=R0201
     # Calculate loss per example-timestep of shape [B, T]
-    print('logits shape', decoder_output.logits.get_shape().as_list())
-    print('targets shape', labels["target_ids"].get_shape().as_list())
     losses = seq2seq_losses.cross_entropy_sequence_loss(
         logits=decoder_output.logits[:, :, :],
         targets=tf.transpose(labels["target_ids"][:, 1:], [1, 0]),

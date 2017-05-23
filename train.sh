@@ -14,6 +14,8 @@ export TRAIN_STEPS=1000000
 export MODEL_DIR=${TMPDIR:-/tmp}/nmt_tutorial
 mkdir -p $MODEL_DIR
 
+'''
+
 python -m bin.train \
   --config_paths="
       ./example_configs/nmt_small.yml,
@@ -40,5 +42,37 @@ python -m bin.train \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
 
+export PRED_DIR=${MODEL_DIR}/pred
+mkdir -p ${PRED_DIR}
 
+python -m bin.infer \
+  --tasks "
+    - class: DecodeText" \
+  --model_dir $MODEL_DIR \
+  --input_pipeline "
+    class: ParallelTextInputPipeline
+    params:
+      source_files:
+        - $DEV_SOURCES" \
+  >  ${PRED_DIR}/predictions.txt
 
+'''
+
+export PRED_DIR=${MODEL_DIR}/pred
+mkdir -p ${PRED_DIR}
+
+python -m bin.infer \
+  --tasks "
+    - class: DecodeText
+    - class: DumpBeams
+      params:
+        file: ${PRED_DIR}/beams.npz" \
+  --model_dir $MODEL_DIR \
+  --model_params "
+    inference.beam_search.beam_width: 5" \
+  --input_pipeline "
+    class: ParallelTextInputPipeline
+    params:
+      source_files:
+        - $DEV_SOURCES" \
+  > ${PRED_DIR}/predictions.txt

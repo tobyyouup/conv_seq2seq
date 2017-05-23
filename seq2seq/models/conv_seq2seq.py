@@ -60,6 +60,29 @@ class ConvSeq2Seq(Seq2SeqModel):
         "decoder.params": {}  # Arbitrary parameters for the decoder
     })
     return params
+  
+  def source_embedding_fairseq(self):
+    """Returns the embedding used for the source sequence.
+    """
+    return tf.get_variable(
+        name="W",
+        shape=[self.source_vocab_info.total_size, self.params["embedding.dim"]],
+        initializer=tf.random_normal_initializer(
+            mean=0.0,
+            stddev=0.1))
+
+  def target_embedding_fairseq(self):
+    """Returns the embedding used for the target sequence.
+    """
+    if self.params["embedding.share"]:
+      return self.source_embedding_fairseq()
+    return tf.get_variable(
+        name="W",
+        shape=[self.target_vocab_info.total_size, self.params["embedding.dim"]],
+        initializer=tf.random_normal_initializer(
+            mean=0.0,
+            stddev=0.1))
+
 
   def _create_decoder(self, encoder_output, features, _labels):
     attention_class = locate(self.params["attention.class"]) or \
@@ -89,7 +112,7 @@ class ConvSeq2Seq(Seq2SeqModel):
 
   def _decode_train(self, decoder, _encoder_output, _features, labels):
     """Runs decoding in training mode"""
-    target_embedded = tf.nn.embedding_lookup(self.target_embedding,
+    target_embedded = tf.nn.embedding_lookup(self.target_embedding_fairseq(),
                                              labels["target_ids"])
 
     return decoder(_encoder_output, target_embedded[:,:-1], labels["target_len"]-1)
@@ -110,7 +133,7 @@ class ConvSeq2Seq(Seq2SeqModel):
 
   @templatemethod("encode")
   def encode(self, features, labels):
-    source_embedded = tf.nn.embedding_lookup(self.source_embedding,
+    source_embedded = tf.nn.embedding_lookup(self.source_embedding_fairseq(),
                                              features["source_ids"])
     encoder_fn = self.encoder_class(self.params["encoder.params"], self.mode)
     print('eval_feature_shape', source_embedded.get_shape().as_list())

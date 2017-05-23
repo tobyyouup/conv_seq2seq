@@ -19,5 +19,6 @@ from seq2seq.models.attention_seq2seq import AttentionSeq2Seq
 from seq2seq.models.image2seq import Image2Seq
 from seq2seq.models.conv_seq2seq import ConvSeq2Seq
 
+
 import seq2seq.models.bridges
 import seq2seq.models.model_base

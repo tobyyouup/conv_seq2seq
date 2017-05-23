@@ -26,6 +26,7 @@ import tensorflow as tf
 
 from seq2seq.encoders.encoder import Encoder, EncoderOutput
 from seq2seq.encoders.pooling_encoder import _create_position_embedding
+from seq2seq.encoders.conv_encoder_utils import ConvEncoderUtils
 
 
 class ConvEncoderFairseq(Encoder):
@@ -70,47 +71,16 @@ class ConvEncoderFairseq(Encoder):
         "position_embeddings.num_positions": 100,
     }
    
-  def parse_list_or_default(self, params_str, number, default_val, delimitor=','):
-    param_list = []
-    if params_str == "":
-      param_list = [default_val] * number
-    else:
-      param_list = [int(x) for x in params_str.strip().split(delimitor)]
-    return param_list
- 
-  def linear_mapping(self, inputs, out_dim, dropout=0.0, var_scope_name="linear_mapping"):
-    with tf.variable_scope(var_scope_name): 
-      input_shape_tensor = tf.shape(inputs)
-      input_shape = inputs.get_shape().as_list()
-      assert len(input_shape) == 3
-      inputs = tf.reshape(inputs, [-1, input_shape[-1]])    
-      linear_mapping_w = tf.get_variable("linear_mapping_w", [input_shape[-1], out_dim], initializer=tf.truncated_normal_initializer(stddev=0.1)) 
-      linear_mapping_b = tf.get_variable("linear_mapping_b", [out_dim], initializer=tf.truncated_normal_initializer(stddev=0.1)) 
-      output = tf.matmul(inputs, linear_mapping_w) + linear_mapping_b
-      print('xxxxx_params', input_shape, out_dim)
-      #output = tf.reshape(output, [input_shape[0], -1, out_dim])
-      output = tf.reshape(output, [input_shape_tensor[0], -1, out_dim])
-    
-    return output    
-  
-  def gated_linear_units(self, inputs):
-    input_shape = inputs.get_shape().as_list()
-    assert len(input_shape) == 3
-    input_pass = inputs[:,:,0:int(input_shape[2]/2)]
-    input_gate = inputs[:,:,int(input_shape[2]/2):]
-    input_gate = tf.sigmoid(input_gate)
-    return tf.multiply(input_pass, input_gate)
-    
 
   def encode(self, inputs, sequence_length):
     
     embed_size = inputs.get_shape().as_list()[-1]
     if self.params["position_embeddings.enable"]:
       positions_embed = _create_position_embedding(
-          embedding_dim=inputs.get_shape().as_list()[-1],
-          num_positions=self.params["position_embeddings.num_positions"],
-          lengths=sequence_length,
-          maxlen=tf.shape(inputs)[1])
+          embedding_dim=embed_size,
+          num_positions=self.params["position_embeddings.num_positions"], #max length in embedding
+          lengths=sequence_length,  # tensor, data lengths
+          maxlen=tf.shape(inputs)[1])  # max len in this batch
       inputs = self._combiner_fn(inputs, positions_embed)
     
     
@@ -123,32 +93,17 @@ class ConvEncoderFairseq(Encoder):
     with tf.variable_scope("encoder_cnn"):    
       next_layer = inputs
       if self.params["cnn.layers"] > 0:
-        nhids_list = self.parse_list_or_default(self.params["cnn.nhids"], self.params["cnn.layers"], self.params["cnn.nhid_default"])
-        kwidths_list = self.parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
+        nhids_list = ConvEncoderUtils.parse_list_or_default(self.params["cnn.nhids"], self.params["cnn.layers"], self.params["cnn.nhid_default"])
+        kwidths_list = ConvEncoderUtils.parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
         
         # mapping emb dim to hid dim
-        next_layer = self.linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
+        next_layer = ConvEncoderUtils.linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
+        next_layer = ConvEncoderUtils.conv_encoder_stack(next_layer, nhids_list, kwidths_list, {'src':0.8, 'hid':0.8}, mode=self.mode)
         
-        for layer_idx in range(len(nhids_list)):
-          nin = nhids_list[layer_idx] if layer_idx == 0 else nhids_list[layer_idx-1]
-          nout = nhids_list[layer_idx]
-          if nin != nout:
-            #mapping for res add
-            res_inputs = self.linear_mapping(next_layer, nout, dropout=self.params["nhid_dropout_keep_prob"], var_scope_name="linear_mapping_cnn_" + str(layer_idx))      
-          else:
-            res_inputs = next_layer
-          #dropout before input to conv
-          next_layer = tf.contrib.layers.conv2d(
-            inputs=next_layer,
-            num_outputs=nout*2,
-            kernel_size=kwidths_list[layer_idx],
-            padding="SAME",   #should take attention
-            activation_fn=None)
-          next_layer = self.gated_linear_units(next_layer)
-          next_layer += res_inputs
-        next_layer = self.linear_mapping(next_layer, embed_size, var_scope_name="linear_mapping_after_cnn")
-      
-      cnn_c_output = next_layer + inputs 
+        next_layer = ConvEncoderUtils.linear_mapping(next_layer, embed_size, var_scope_name="linear_mapping_after_cnn")
+      ## The encoder stack will receive gradients *twice* for each attention pass: dot product and weighted sum.
+      ##cnn = nn.GradMultiply(cnn, 1 / (2 * nattn))  
+      cnn_c_output = (next_layer + inputs) * tf.sqrt(0.5) 
             
 
     final_state = tf.reduce_mean(cnn_c_output, 1)

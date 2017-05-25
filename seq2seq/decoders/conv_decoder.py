@@ -34,8 +34,9 @@ from seq2seq.graph_module import GraphModule
 from seq2seq.configurable import Configurable
 from seq2seq.contrib.seq2seq.decoder import Decoder, dynamic_decode
 from seq2seq.contrib.seq2seq.decoder import _transpose_batch_time
-from seq2seq.encoders.pooling_encoder import _create_position_embedding
+from seq2seq.encoders.pooling_encoder import _create_position_embedding, position_encoding
 from seq2seq.encoders.conv_encoder_utils import ConvEncoderUtils
+from seq2seq.inference import beam_search  
 
 class ConvDecoderOutput(
     #namedtuple("ConvDecoderOutput", ["logits", "predicted_ids", "cell_output", "attention_scores", "attention_context"])):
@@ -189,25 +190,17 @@ class ConvDecoder(GraphModule, Configurable):
     #sample_ids = math_ops.cast(math_ops.argmax(logits, axis=-1), dtypes.int32)
  
     return ConvDecoderOutput(logits=logits, predicted_ids=sample_ids)
-
-  def conv_decoder_infer(self, decoder, enc_output, labels, sequence_length):
-    embed_size = labels.get_shape().as_list()[-1]
-    if self.params["position_embeddings.enable"]:
-      positions_embed = _create_position_embedding(
-          embedding_dim=embed_size,
-          num_positions=self.params["position_embeddings.num_positions"],
-          lengths=sequence_length,
-          maxlen=tf.shape(labels)[1])
-      labels = self._combiner_fn(labels, positions_embed)
-     
-    # Apply dropout to embeddings
-    inputs = tf.contrib.layers.dropout(
-        inputs=labels,
-        keep_prob=self.params["embedding_dropout_keep_prob"],
-        is_training=self.mode == tf.contrib.learn.ModeKeys.TRAIN)
     
+
+  def infer_conv_block(self, enc_output, input_embed):
+    # Apply dropout to embeddings
+    input_embed = tf.contrib.layers.dropout(
+        inputs=input_embed,
+        keep_prob=self.params["embedding_dropout_keep_prob"],
+        is_training=self.mode == tf.contrib.learn.ModeKeys.INFER)
+     
     with tf.variable_scope("decoder_cnn"):    
-      next_layer = inputs
+      next_layer = input_embed
       if self.params["cnn.layers"] > 0:
         nhids_list = ConvEncoderUtils.parse_list_or_default(self.params["cnn.nhids"], self.params["cnn.layers"], self.params["cnn.nhid_default"])
         kwidths_list = ConvEncoderUtils.parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
@@ -218,15 +211,86 @@ class ConvDecoder(GraphModule, Configurable):
         next_layer = ConvEncoderUtils.conv_decoder_stack(inputs, enc_output, next_layer, nhids_list, kwidths_list, {'src':0.8, 'hid':0.8}, mode=self.mode)
     
     with tf.variable_scope("softmax"):
-      next_layer = ConvEncoderUtils.linear_mapping(next_layer, self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
+      next_layer = ConvEncoderUtils.linear_mapping(next_layer[:,-1:,:], self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
       next_layer = tf.contrib.layers.dropout(
         inputs=next_layer,
         keep_prob=self.params["out_dropout_keep_prob"],
-        is_training=self.mode == tf.contrib.learn.ModeKeys.TRAIN)
+        is_training=self.mode == tf.contrib.learn.ModeKeys.INFER)
       
       next_layer = ConvEncoderUtils.linear_mapping(next_layer, self.vocab_size, dropout=self.params["out_dropout_keep_prob"], var_scope_name="logits_before_softmax")
-       
-    logits = _transpose_batch_time(next_layer)   
+    
+    shape = next_layer.get_shape().as_list()  
+    logits = tf.reshape(next_layer, [shape[0],shape(-1)])   
+    return logits
+
+
+  def create_init_state(self, config, target_embedding, start_tokens)
+    
+    beam_state = beam_search.create_initial_beam_state(config)    
+    
+    start_embedded = tf.nn.embedding_lookup(target_embedding, start_tokens)
+
+    embed_size = start_embedded.get_shape().as_list()[-1]
+    if self.params["position_embeddings.enable"]:
+      positions_embed = tf.constant(position_encoding(self.params["position_embeddings.num_positions"], embed_size), name="position_encoding") 
+        
+    
+    start_pos_embed = positions_embed[0:1,:]
+    start_pos_embed_batch = tf.tile(start_pos_embed, [config.beam_size,1])
+    
+    input_embed = self._combiner_fn(start_embedded + start_pos_embed)
+    return input_embed, beam_state
+ 
+  def next_inputs(self, time, outputs, state, sample_ids, name=None):
+    finished = math_ops.equal(sample_ids, self._end_token)
+    all_finished = math_ops.reduce_all(finished)
+    next_inputs = control_flow_ops.cond(
+        all_finished,
+        # If we're finished, the next_inputs value doesn't matter
+        lambda: self._start_inputs,
+        lambda: self._embedding_fn(sample_ids))
+    return finished, next_inputs
+
+
+
+  def step(self, time_, inputs, beam_state, name=None):
+    
+    logits = self.infer_conv_block(enc_output, inputs)
+    
+    bs_output, beam_state = beam_search.beam_search_step(
+        time_=time_,
+        logits=logits,
+        beam_state=beam_state,
+        config=config)
+
+    finished, next_inputs = self.next_inputs(sample_ids=bs_output.predicted_ids)
+    next_inputs.set_shape([self.batch_size, None])
+
+    return bs_output, next_inputs, beam_state
+    
+  def conv_decoder_infer(self, decoder, enc_output, target_embedding, start_tokens, config):
+
+    inputs, beam_state = create_init_state(config, target_embedding, start_tokens)
+    
+    time_ = 0
+        
+
+    WHILE:
+        bs_output, next_inputs, beam_state = self.step(time_, inputs, beam_state) 
+        inputs = create_next_inputs(inputs, next_inputs)
+         
+        outputs = BeamDecoderOutput(
+        logits=tf.zeros([self.config.beam_width, self.config.vocab_size]),
+        predicted_ids=bs_output.predicted_ids,
+        log_probs=beam_state.log_probs,
+        scores=bs_output.scores,
+        beam_parent_ids=bs_output.beam_parent_ids,
+        original_outputs=decoder_output)
+    
+    
+      outputs_ta = nest.map_structure(lambda ta, out: ta.write(time, out),
+                                      outputs_ta, outputs)
+    final_outputs = nest.map_structure(lambda ta: ta.stack(), final_outputs_ta)
 
     sample_ids = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
     #sample_ids = math_ops.cast(math_ops.argmax(logits, axis=-1), dtypes.int32)
@@ -237,7 +301,7 @@ class ConvDecoder(GraphModule, Configurable):
 
 
 
-  def _build(self, enc_output, labels, sequence_length):
+  def _build(self, enc_output, labels=None, sequence_length=None, target_embedding=None, start_tokens=None, config=None):
 
     #scope = tf.get_variable_scope()
     #scope.set_initializer(tf.random_uniform_initializer(-self.params["init_scale"], self.params["init_scale"]))
@@ -245,7 +309,7 @@ class ConvDecoder(GraphModule, Configurable):
     maximum_iterations = None
     if self.mode == tf.contrib.learn.ModeKeys.INFER:
       maximum_iterations = self.params["max_decode_length"]
-      outputs = self.conv_decoder_train(decoder=self, enc_output=enc_output, labels=labels, sequence_length=sequence_length)
+      outputs = self.conv_decoder_infer(decoder=self, enc_output=enc_output, target_embedding=target_embedding, start_tokens=start_tokens, config=config)
     else:
       outputs = self.conv_decoder_train(decoder=self, enc_output=enc_output, labels=labels, sequence_length=sequence_length)
     return outputs, outputs

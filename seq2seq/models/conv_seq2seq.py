@@ -27,7 +27,7 @@ from seq2seq.contrib.seq2seq import helper as tf_decode_helper
 from seq2seq.models.seq2seq_model import Seq2SeqModel
 from seq2seq.graph_utils import templatemethod
 from seq2seq.models import bridges
-
+from seq2seq.infer import beam_search
 
 class ConvSeq2Seq(Seq2SeqModel):
   """Basic Sequence2Sequence model with a unidirectional encoder and decoder.
@@ -115,21 +115,24 @@ class ConvSeq2Seq(Seq2SeqModel):
     target_embedded = tf.nn.embedding_lookup(self.target_embedding_fairseq(),
                                              labels["target_ids"])
 
-    return decoder(_encoder_output, target_embedded[:,:-1], labels["target_len"]-1)
+    return decoder(_encoder_output, labels=target_embedded[:,:-1], sequence_length=labels["target_len"]-1)
 
-  def _decode_infer(self, decoder, _encoder_output, features, labels, bridge=None):
+  def _decode_infer(self, decoder, _encoder_output, features, labels):
     """Runs decoding in inference mode"""
-    batch_size = self.batch_size(features, labels)
-    if self.use_beam_search:
-      batch_size = self.params["inference.beam_search.beam_width"]
+    config = beam_search.BeamSearchConfig(
+        beam_width=self.params["inference.beam_search.beam_width"],
+        vocab_size=self.target_vocab_info.total_size,
+        eos_token=self.target_vocab_info.special_vocab.SEQUENCE_END,
+        length_penalty_weight=self.params[
+            "inference.beam_search.length_penalty_weight"],
+        choose_successors_fn=getattr(
+            beam_search,
+            self.params["inference.beam_search.choose_successors_fn"]))
 
     target_start_id = self.target_vocab_info.special_vocab.SEQUENCE_START
-    helper_infer = tf_decode_helper.GreedyEmbeddingHelper(
-        embedding=self.target_embedding,
-        start_tokens=tf.fill([batch_size], target_start_id),
-        end_token=self.target_vocab_info.special_vocab.SEQUENCE_END)
-    decoder_initial_state = bridge()
-    return decoder(decoder_initial_state, helper_infer)
+    start_tokens=tf.fill([batch_size], target_start_id)
+    
+    return decoder(_encoder_output, target_embedding=self.target_embedding_fairseq(), start_tokens=start_tokens, config=config)
 
   @templatemethod("encode")
   def encode(self, features, labels):

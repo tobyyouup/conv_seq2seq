@@ -1,9 +1,5 @@
 model: ConvSeq2Seq
 model_params:
-  attention.class: seq2seq.decoders.attention.AttentionLayerDot
-  attention.params:
-    num_units: 128
-  bridge.class: seq2seq.models.bridges.ZeroBridge
   embedding.dim: 128
   encoder.class: seq2seq.encoders.ConvEncoderFairseq
   encoder.params:

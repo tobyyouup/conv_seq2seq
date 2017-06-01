@@ -182,7 +182,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     next_inputs = control_flow_ops.cond(
         all_finished,
         # If we're finished, the next_inputs value doesn't matter
-        lambda:  tf.nn.embedding_lookup(self.target_embedding, self.config.eos_token),
+        lambda:  tf.nn.embedding_lookup(self.target_embedding, tf.tile([self.config.eos_token], [self.config.beam_width])),
         lambda: tf.nn.embedding_lookup(self.target_embedding, sample_ids))
     return all_finished, next_inputs
 
@@ -203,12 +203,14 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     inputs = self.add_position_embedding(self.current_inputs)
       
     logits = self.infer_conv_block(self.enc_output, inputs)
+    print('logits', logits.get_shape().as_list())    
     
     bs_output, beam_state = beam_search.beam_search_step(
         time_=time,
         logits=logits,
         beam_state=state,
         config=self.config)
+    print('bs_output.predicted_ids', bs_output.predicted_ids.get_shape().as_list())    
 
     finished, next_inputs = self.next_inputs(sample_ids=bs_output.predicted_ids)
     next_inputs = tf.reshape(next_inputs, [self.config.beam_width, 1, inputs.get_shape().as_list()[-1]])
@@ -281,7 +283,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     tf.get_variable_scope().reuse_variables()    
     outputs, final_state = dynamic_decode(
         decoder=self,
-        output_time_major=False,
+        output_time_major=True,
         impute_finished=False,
         maximum_iterations=maximum_iterations)
  

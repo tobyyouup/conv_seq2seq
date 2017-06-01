@@ -39,6 +39,7 @@ class DumpBeams(InferenceTask):
     super(DumpBeams, self).__init__(params)
     self._beam_accum = {
         "predicted_ids": [],
+        "predicted_tokens": [],
         "beam_parent_ids": [],
         "scores": [],
         "log_probs": []
@@ -63,11 +64,17 @@ class DumpBeams(InferenceTask):
         "beam_search_output.scores"]
     fetches["beam_search_output.log_probs"] = self._predictions[
         "beam_search_output.log_probs"]
+    fetches["predicted_tokens"] = self._predictions[
+        "predicted_tokens"]
     return tf.train.SessionRunArgs(fetches)
 
   def after_run(self, _run_context, run_values):
     fetches_batch = run_values.results
     for fetches in unbatch_dict(fetches_batch):
+      print('beam_search_output.predicted_ids',fetches["beam_search_output.predicted_ids"].shape)
+      print('beam_parent_ids',fetches["beam_search_output.beam_parent_ids"].shape)
+      print('scores',fetches["beam_search_output.scores"].shape)
+      print('log_probs',fetches["beam_search_output.log_probs"].shape)
       self._beam_accum["predicted_ids"].append(fetches[
           "beam_search_output.predicted_ids"])
       self._beam_accum["beam_parent_ids"].append(fetches[
@@ -75,6 +82,7 @@ class DumpBeams(InferenceTask):
       self._beam_accum["scores"].append(fetches["beam_search_output.scores"])
       self._beam_accum["log_probs"].append(fetches[
           "beam_search_output.log_probs"])
+      self._beam_accum["predicted_tokens"].append(fetches["predicted_tokens"])
 
   def end(self, _session):
     np.savez(self.params["file"], **self._beam_accum)

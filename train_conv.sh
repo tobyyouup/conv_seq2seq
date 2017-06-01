@@ -14,7 +14,7 @@ export TRAIN_STEPS=1000000
 export MODEL_DIR=${TMPDIR:-/tmp}/nmt_tutorial_convseq2seq
 mkdir -p $MODEL_DIR
 
-
+'''
 python -m bin.train \
   --config_paths="
       ./example_configs/convseq2seq.yml,
@@ -45,7 +45,6 @@ python -m bin.train \
 
 export PRED_DIR=${MODEL_DIR}/pred
 mkdir -p ${PRED_DIR}
-
 DEV_SOURCES=test.en
 python -m bin.infer \
   --tasks "
@@ -62,5 +61,5 @@ python -m bin.infer \
         - $DEV_SOURCES" \
   > ${PRED_DIR}/predictions.txt
 
-'''
+
 

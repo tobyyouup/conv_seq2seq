@@ -100,6 +100,9 @@ class Seq2SeqModel(ModelBase):
     output_dict = collections.OrderedDict(
         zip(decoder_output._fields, decoder_output))
     decoder_output_flat = _flatten_dict(output_dict)
+    
+    #for k, v in decoder_output_flat.items():
+    #  print(k, v.get_shape().as_list())
     decoder_output_flat = {
         k: _transpose_batch_time(v)
         for k, v in decoder_output_flat.items()
@@ -114,6 +117,8 @@ class Seq2SeqModel(ModelBase):
           tf.to_int64(predictions["predicted_ids"]))
       # Raw predicted tokens
       predictions["predicted_tokens"] = predicted_tokens
+    #for k, v in predictions.items():
+    #  print(k, v.get_shape().as_list())
 
     return predictions
 

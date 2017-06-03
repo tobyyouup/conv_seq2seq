@@ -12,7 +12,7 @@ export TEST_TARGETS=${DATA_PATH}/test.en
 export TRAIN_STEPS=1000000
 
 
-export MODEL_DIR=/dev/nmt/nmt_tutorial_iwslt_full
+export MODEL_DIR=/dev/nmt/nmt_tutorial_iwslt_para
 mkdir -p $MODEL_DIR
 
 
@@ -40,6 +40,7 @@ python -m bin.train \
        target_files:
         - $DEV_TARGETS" \
   --batch_size 32 \
+  --eval_every_n_steps 10000 \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
 '''

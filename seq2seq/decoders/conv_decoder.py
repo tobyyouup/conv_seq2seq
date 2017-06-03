@@ -34,7 +34,7 @@ from seq2seq.graph_module import GraphModule
 from seq2seq.configurable import Configurable
 from seq2seq.contrib.seq2seq.decoder import Decoder, dynamic_decode
 from seq2seq.contrib.seq2seq.decoder import _transpose_batch_time
-from seq2seq.encoders.pooling_encoder import _create_position_embedding, position_encoding
+#from seq2seq.encoders.pooling_encoder import _create_position_embedding, position_encoding
 from seq2seq.encoders.conv_encoder_utils import ConvEncoderUtils
 from seq2seq.inference import beam_search  
 from tensorflow.python.util import nest
@@ -93,6 +93,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
                vocab_size,
                config,
                target_embedding,
+               pos_embedding,
                start_tokens,
                enc_output,
                name="conv_decoder_fairseq"):
@@ -105,26 +106,24 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     self.start_tokens=start_tokens
     self.enc_output=enc_output  
     self._combiner_fn = locate(self.params["position_embeddings.combiner_fn"])
-    self.positions_embed = tf.constant(position_encoding(self.params["position_embeddings.num_positions"], target_embedding.get_shape().as_list()[-1]), name="position_encoding") 
+    #self.positions_embed = tf.constant(position_encoding(self.params["position_embeddings.num_positions"], target_embedding.get_shape().as_list()[-1]), name="position_encoding") 
+    self.pos_embed = pos_embedding
     self.current_inputs = None
     self.conv_utils = ConvEncoderUtils()
   @staticmethod
   def default_params():
     return {
         "cnn.layers": 3,
-        "cnn.nhids": "512,512,512",
+        "cnn.nhids": "256,256,256",
         "cnn.kwidths": "3,3,3",
         "cnn.nhid_default": 256,
         "cnn.kwidth_default": 3,
-        "embedding_dropout_keep_prob": 0.8,
-        "nhid_dropout_keep_prob": 0.8,
-        "out_dropout_keep_prob": 0.8,
-        "word_embeddings.size": 512,
+        "embedding_dropout_keep_prob": 0.9,
+        "nhid_dropout_keep_prob": 0.9,
+        "out_dropout_keep_prob": 0.9,
         "position_embeddings.enable": True,
         "position_embeddings.combiner_fn": "tensorflow.add",
-        "position_embeddings.num_positions": 100,
         "max_decode_length": 100,
-        "init_scale": 0.04,
         "nout_embed": 256,
     }
  
@@ -186,9 +185,24 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         lambda: tf.nn.embedding_lookup(self.target_embedding, sample_ids))
     return all_finished, next_inputs
 
+  def _create_position_embedding(self, lengths, maxlen):
+
+    # Slice to size of current sequence
+    pe_slice = self.pos_embed[:maxlen, :]
+    # Replicate encodings for each element in the batch
+    batch_size = tf.shape(lengths)[0]
+    pe_batch = tf.tile([pe_slice], [batch_size, 1, 1])
+
+    # Mask out positions that are padded
+    positions_mask = tf.sequence_mask(
+        lengths=lengths, maxlen=maxlen, dtype=tf.float32)
+    positions_embed = pe_batch * tf.expand_dims(positions_mask, 2)
+
+    return positions_embed
+  
   def add_position_embedding(self, inputs):
     seq_len = inputs.get_shape().as_list()[1]
-    seq_pos_embed = self.positions_embed[0:seq_len,:]   
+    seq_pos_embed = self.pos_embed[0:seq_len,:]   
     seq_pos_embed_batch = tf.tile(seq_pos_embed, [self.config.beam_width,1])
     
     return self._combiner_fn(inputs, seq_pos_embed_batch)
@@ -251,7 +265,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         # mapping emb dim to hid dim
         next_layer = self.conv_utils.linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
          
-        next_layer = self.conv_utils.conv_decoder_stack(input_embed, enc_output, next_layer, nhids_list, kwidths_list, {'src':0.8, 'hid':0.8}, mode=self.mode)
+        next_layer = self.conv_utils.conv_decoder_stack(input_embed, enc_output, next_layer, nhids_list, kwidths_list, {'src':self.params["embedding_dropout_keep_prob"], 'hid': self.params["nhid_dropout_keep_prob"]}, mode=self.mode)
     
     with tf.variable_scope("softmax"):
       if is_train:
@@ -292,9 +306,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
   def conv_decoder_train(self, enc_output, labels, sequence_length):
     embed_size = labels.get_shape().as_list()[-1]
     if self.params["position_embeddings.enable"]:
-      positions_embed = _create_position_embedding(
-          embedding_dim=embed_size,
-          num_positions=self.params["position_embeddings.num_positions"],
+      positions_embed = self._create_position_embedding(
           lengths=sequence_length,
           maxlen=tf.shape(labels)[1])
       labels = self._combiner_fn(labels, positions_embed)

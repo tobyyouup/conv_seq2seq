@@ -53,9 +53,36 @@ class ConvSeq2Seq(Seq2SeqModel):
     params.update({
         "encoder.class": "seq2seq.encoders.ConvEncoderFairseq",
         "encoder.params": {},  # Arbitrary parameters for the encoder
-        "decoder.class": "seq2seq.decoders.ConvDecoderFairseq",
-        "decoder.params": {}  # Arbitrary parameters for the decoder
-    })
+        "decoder.class": "seq2seq.decoders.ConvDecoder",
+        "decoder.params": {},  # Arbitrary parameters for the decoder
+        "source.max_seq_len": 50,
+        "source.reverse": False,
+        "target.max_seq_len": 50,
+        "embedding.dim": 256,
+        "embedding.init_scale": 0.04,
+        "embedding.share": False,
+        "position_embeddings.num_positions": 100,
+        "inference.beam_search.beam_width": 0,
+        "inference.beam_search.length_penalty_weight": 0.0,
+        "inference.beam_search.choose_successors_fn": "choose_top_k",
+        "vocab_source": "",
+        "vocab_target": "", 
+        "optimizer.name": "Momentum",
+        "optimizer.learning_rate": 0.25,
+        "optimizer.params": {"momentum": 0.99, "use_nesterov": True}, # Arbitrary parameters for the optimizer
+        "optimizer.lr_decay_type": "exponential_decay",
+        "optimizer.lr_decay_steps": 30000,  # one epoch steps
+        "optimizer.lr_decay_rate": 0.1,  # lr/10
+        "optimizer.lr_start_decay_at": 570000,  # start annealing epoch 20,  19*epoch steps
+        "optimizer.lr_stop_decay_at": tf.int32.max,
+        "optimizer.lr_min_learning_rate": 1e-5,
+        "optimizer.lr_staircase": True,
+        "optimizer.clip_gradients": 0.1,
+        "optimizer.clip_embed_gradients": 0.1,
+        "optimizer.sync_replicas": 0,
+        "optimizer.sync_replicas_to_aggregate": 0,
+        
+})
     return params
   
   def source_embedding_fairseq(self):
@@ -80,6 +107,21 @@ class ConvSeq2Seq(Seq2SeqModel):
             mean=0.0,
             stddev=0.1))
 
+  def source_pos_embedding_fairseq(self):
+    return tf.get_variable(
+        name="pos",
+        shape=[self.params["position_embeddings.num_positions"], self.params["embedding.dim"]],
+        initializer=tf.random_normal_initializer(
+            mean=0.0,
+            stddev=0.1))
+    
+  def target_pos_embedding_fairseq(self):
+    return tf.get_variable(
+        name="pos",
+        shape=[self.params["position_embeddings.num_positions"], self.params["embedding.dim"]],
+        initializer=tf.random_normal_initializer(
+            mean=0.0,
+            stddev=0.1))
 
   def _create_decoder(self, encoder_output, features, _labels):
 
@@ -99,6 +141,7 @@ class ConvSeq2Seq(Seq2SeqModel):
         vocab_size=self.target_vocab_info.total_size,
         config=config,
         target_embedding=self.target_embedding_fairseq(),
+        pos_embedding=self.target_pos_embedding_fairseq(),
         start_tokens=tf.fill([self.params["inference.beam_search.beam_width"]], self.target_vocab_info.special_vocab.SEQUENCE_START),
         enc_output=encoder_output)
 
@@ -122,7 +165,7 @@ class ConvSeq2Seq(Seq2SeqModel):
      
     source_embedded = tf.nn.embedding_lookup(self.source_embedding_fairseq(),
                                              features["source_ids"])
-    encoder_fn = self.encoder_class(self.params["encoder.params"], self.mode)
+    encoder_fn = self.encoder_class(self.params["encoder.params"], self.mode, self.source_pos_embedding_fairseq())
     #print('eval_feature_shape', source_embedded.get_shape().as_list())
     #print('eval_label_shape', labels["target_ids"].get_shape().as_list())
     return encoder_fn(source_embedded, features["source_len"])

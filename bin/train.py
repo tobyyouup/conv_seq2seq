@@ -85,7 +85,7 @@ tf.flags.DEFINE_string("schedule", "continuous_train_and_eval",
 tf.flags.DEFINE_integer("train_steps", None,
                         """Maximum number of training steps to run.
                          If None, train forever.""")
-tf.flags.DEFINE_integer("eval_every_n_steps", 1000,
+tf.flags.DEFINE_integer("eval_every_n_steps", 100000,
                         "Run evaluation on validation data every N steps.")
 
 # RunConfig Flags

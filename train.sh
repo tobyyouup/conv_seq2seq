@@ -11,7 +11,7 @@ export DEV_TARGETS_REF=${DATA_PATH}/newstest2013.tok.de
 export TRAIN_STEPS=1000000
 
 
-export MODEL_DIR=${TMPDIR:-/tmp}/nmt_tutorial
+export MODEL_DIR=/dev/nmt/nmt_tutorial
 mkdir -p $MODEL_DIR
 
 
@@ -37,7 +37,7 @@ python -m bin.train \
         - $DEV_SOURCES
        target_files:
         - $DEV_TARGETS" \
-  --batch_size 24 \
+  --batch_size 32 \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
 

@@ -4,18 +4,19 @@ export VOCAB_SOURCE=${DATA_PATH}/vocab.de
 export VOCAB_TARGET=${DATA_PATH}/vocab.en
 export TRAIN_SOURCES=${DATA_PATH}/train.de
 export TRAIN_TARGETS=${DATA_PATH}/train.en
-export DEV_SOURCES=${DATA_PATH}/valid.de
-export DEV_TARGETS=${DATA_PATH}/valid.en
+export DEV_SOURCES=${DATA_PATH}/valid.de.full
+export DEV_TARGETS=${DATA_PATH}/valid.en.full
 export TEST_SOURCES=${DATA_PATH}/test.de
 export TEST_TARGETS=${DATA_PATH}/test.en
 
 export TRAIN_STEPS=1000000
 
 
-export MODEL_DIR=${TMPDIR:-/tmp}/nmt_tutorial_iwslt
+export MODEL_DIR=/dev/nmt/nmt_tutorial_iwslt_full
 mkdir -p $MODEL_DIR
 
-'''
+
+
 python -m bin.train \
   --config_paths="
       ./example_configs/iwslt.yml,
@@ -38,7 +39,7 @@ python -m bin.train \
         - $DEV_SOURCES
        target_files:
         - $DEV_TARGETS" \
-  --batch_size 24 \
+  --batch_size 32 \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
 '''
@@ -55,12 +56,12 @@ python -m bin.infer \
         file: ${PRED_DIR}/beams.npz" \
   --model_dir $MODEL_DIR \
   --model_params "
-    inference.beam_search.beam_width: 10" \
+    inference.beam_search.beam_width: 5" \
   --input_pipeline "
     class: ParallelTextInputPipeline
     params:
       source_files:
         - $TEST_SOURCES" \
   > ${PRED_DIR}/predictions.txt
-
+'''
 

@@ -158,6 +158,7 @@ class DecodeText(InferenceTask):
       predicted_tokens = fetches["predicted_tokens"]
 
       # If we're using beam search we take the first beam
+      print('decode_text shape', predicted_tokens.shape)
       if np.ndim(predicted_tokens) > 1:
         predicted_tokens = predicted_tokens[:, 0]
 

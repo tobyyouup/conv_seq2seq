@@ -111,6 +111,7 @@ class Seq2SeqModel(ModelBase):
 
     # If we predict the ids also map them back into the vocab and process them
     if "predicted_ids" in predictions.keys():
+      print('predicted_ids shape', predictions["predicted_ids"].get_shape().as_list())
       vocab_tables = graph_utils.get_dict_from_collection("vocab_tables")
       target_id_to_vocab = vocab_tables["target_id_to_vocab"]
       predicted_tokens = target_id_to_vocab.lookup(

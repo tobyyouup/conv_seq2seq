@@ -35,7 +35,7 @@ from seq2seq.configurable import Configurable
 from seq2seq.contrib.seq2seq.decoder import Decoder, dynamic_decode
 from seq2seq.contrib.seq2seq.decoder import _transpose_batch_time
 #from seq2seq.encoders.pooling_encoder import _create_position_embedding, position_encoding
-from seq2seq.encoders.conv_encoder_utils import ConvEncoderUtils
+from seq2seq.encoders.conv_encoder_utils import *
 from seq2seq.inference import beam_search  
 from tensorflow.python.util import nest
 from tensorflow.python.ops import tensor_array_ops
@@ -109,7 +109,6 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     #self.positions_embed = tf.constant(position_encoding(self.params["position_embeddings.num_positions"], target_embedding.get_shape().as_list()[-1]), name="position_encoding") 
     self.pos_embed = pos_embedding
     self.current_inputs = None
-    self.conv_utils = ConvEncoderUtils()
   @staticmethod
   def default_params():
     return {
@@ -123,7 +122,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         "out_dropout_keep_prob": 0.9,
         "position_embeddings.enable": True,
         "position_embeddings.combiner_fn": "tensorflow.add",
-        "max_decode_length": 100,
+        "max_decode_length": 50,
         "nout_embed": 256,
     }
  
@@ -259,25 +258,25 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     with tf.variable_scope("decoder_cnn"):    
       next_layer = input_embed
       if self.params["cnn.layers"] > 0:
-        nhids_list = self.conv_utils.parse_list_or_default(self.params["cnn.nhids"], self.params["cnn.layers"], self.params["cnn.nhid_default"])
-        kwidths_list = self.conv_utils.parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
+        nhids_list = parse_list_or_default(self.params["cnn.nhids"], self.params["cnn.layers"], self.params["cnn.nhid_default"])
+        kwidths_list = parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
         
         # mapping emb dim to hid dim
-        next_layer = self.conv_utils.linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
+        next_layer = linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
          
-        next_layer = self.conv_utils.conv_decoder_stack(input_embed, enc_output, next_layer, nhids_list, kwidths_list, {'src':self.params["embedding_dropout_keep_prob"], 'hid': self.params["nhid_dropout_keep_prob"]}, mode=self.mode)
+        next_layer = conv_decoder_stack(input_embed, enc_output, next_layer, nhids_list, kwidths_list, {'src':self.params["embedding_dropout_keep_prob"], 'hid': self.params["nhid_dropout_keep_prob"]}, mode=self.mode)
     
     with tf.variable_scope("softmax"):
       if is_train:
-        next_layer = self.conv_utils.linear_mapping(next_layer, self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
+        next_layer = linear_mapping(next_layer, self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
       else:         
-        next_layer = self.conv_utils.linear_mapping(next_layer[:,-1:,:], self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
+        next_layer = linear_mapping(next_layer[:,-1:,:], self.params["nout_embed"], var_scope_name="linear_mapping_after_cnn")
       next_layer = tf.contrib.layers.dropout(
         inputs=next_layer,
         keep_prob=self.params["out_dropout_keep_prob"],
         is_training=is_train)
      
-      next_layer = self.conv_utils.linear_mapping(next_layer, self.vocab_size, in_dim=self.params["nout_embed"], dropout=self.params["out_dropout_keep_prob"], var_scope_name="logits_before_softmax")
+      next_layer = linear_mapping(next_layer, self.vocab_size, in_dim=self.params["nout_embed"], dropout=self.params["out_dropout_keep_prob"], var_scope_name="logits_before_softmax")
       
     return next_layer 
  

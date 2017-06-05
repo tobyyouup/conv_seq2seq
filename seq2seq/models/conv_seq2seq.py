@@ -142,8 +142,7 @@ class ConvSeq2Seq(Seq2SeqModel):
         config=config,
         target_embedding=self.target_embedding_fairseq(),
         pos_embedding=self.target_pos_embedding_fairseq(),
-        start_tokens=tf.fill([self.params["inference.beam_search.beam_width"]], self.target_vocab_info.special_vocab.SEQUENCE_START),
-        enc_output=encoder_output)
+        start_tokens=self.target_vocab_info.special_vocab.SEQUENCE_START)
 
   def _decode_train(self, decoder, _encoder_output, _features, labels):
     """Runs decoding in training mode"""
@@ -155,10 +154,7 @@ class ConvSeq2Seq(Seq2SeqModel):
   def _decode_infer(self, decoder, _encoder_output, features, labels):
     """Runs decoding in inference mode"""
 
-    target_start_id = self.target_vocab_info.special_vocab.SEQUENCE_START
-    start_tokens=tf.fill([self.params["inference.beam_search.beam_width"]], target_start_id)
-    
-    return decoder(_encoder_output, start_tokens=start_tokens)
+    return decoder(_encoder_output)
 
   @templatemethod("encode")
   def encode(self, features, labels):

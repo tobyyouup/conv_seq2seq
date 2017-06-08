@@ -50,6 +50,16 @@ class ConvDecoderOutput(
     namedtuple("ConvDecoderOutput", ["logits", "predicted_ids"])): 
     pass
 
+class FinalBeamDecoderOutput(
+    namedtuple("FinalBeamDecoderOutput",
+               ["predicted_ids", "beam_search_output"])):
+    pass
+
+class BeamDecoderOutput(
+    namedtuple("BeamDecoderOutput", [
+        "logits", "predicted_ids", "log_probs", "scores", "beam_parent_ids"
+    ])):
+    pass
 
 @six.add_metaclass(abc.ABCMeta)
 class ConvDecoder(Decoder, GraphModule, Configurable):
@@ -112,7 +122,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         "out_dropout_keep_prob": 0.9,
         "position_embeddings.enable": True,
         "position_embeddings.combiner_fn": "tensorflow.add",
-        "max_decode_length": 49,
+        "max_decode_length": 50,
         "nout_embed": 256,
     }
  
@@ -122,16 +132,21 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
 
   @property
   def output_size(self):
-    return ConvDecoderOutput(
+    return BeamDecoderOutput(
         logits=self.vocab_size,   # need pay attention
-        predicted_ids=tf.TensorShape([]))
+        predicted_ids=tf.TensorShape([]),
+        log_probs=tf.TensorShape([]),
+        scores=tf.TensorShape([]),
+        beam_parent_ids=tf.TensorShape([]))
 
   @property
   def output_dtype(self):
-    return ConvDecoderOutput(
+    return BeamDecoderOutput(
         logits=tf.float32,
-        predicted_ids=tf.int32)
-
+        predicted_ids=tf.int32,
+        log_probs=tf.float32,
+        scores=tf.float32,
+        beam_parent_ids=tf.int32)
   def print_shape(self, name, tensor):
     print(name, tensor.get_shape().as_list()) 
  
@@ -147,6 +162,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     first_inputs = tf.expand_dims(first_inputs, 1)
     zeros_padding = tf.zeros([self.config.beam_width, self.params['max_decode_length']-1, self.target_embedding.get_shape().as_list()[-1]])
     first_inputs = tf.concat([first_inputs, zeros_padding], axis=1)
+    beam_state = beam_search.create_initial_beam_state(self.config)    
     
     outputs = tf.tile(self.initial_state.outputs, [self.config.beam_width,1,1]) 
     attention_values = tf.tile(self.initial_state.attention_values, [self.config.beam_width,1,1]) 
@@ -157,10 +173,9 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         attention_values_length=self.initial_state.attention_values_length)
     
     
-    return finished, first_inputs, enc_output
+    return finished, first_inputs, (enc_output, beam_state)
   
   def finalize(self, outputs, final_state):
-    '''
     # Gather according to beam search result
     predicted_ids = beam_search.gather_tree(outputs.predicted_ids,
                                             outputs.beam_parent_ids)
@@ -175,10 +190,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         beam_search_output=outputs)
 
     return final_outputs, final_state
-    ''' 
- 
-    return outputs, final_state
-   
+  
   def next_inputs(self, sample_ids,name=None):
     finished = math_ops.equal(sample_ids, self.config.eos_token)
     all_finished = math_ops.reduce_all(finished)
@@ -217,23 +229,31 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     zeros_padding = inputs[:,time+2:,:] 
     cur_inputs = self.add_position_embedding(cur_inputs, time)
     
-    enc_output = state 
+    enc_output, beam_state = state 
     logits = self.infer_conv_block(enc_output, cur_inputs)
     print('logits', logits.get_shape().as_list())    
     
-    sample_ids = tf.cast(tf.argmax(logits, axis=-1), dtypes.int32)
+    bs_output, beam_state = beam_search.beam_search_step(
+        time_=time,
+        logits=logits,
+        beam_state=beam_state,
+        config=self.config)
+    print('bs_output.predicted_ids', bs_output.predicted_ids.get_shape().as_list())    
 
-    finished, next_inputs = self.next_inputs(sample_ids=sample_ids)
+    finished, next_inputs = self.next_inputs(sample_ids=bs_output.predicted_ids)
     next_inputs = tf.reshape(next_inputs, [self.config.beam_width, 1, inputs.get_shape().as_list()[-1]])
     print('next_inputs.predicted_ids', next_inputs.get_shape().as_list())
     next_inputs = tf.concat([cur_inputs, next_inputs], axis=1)
     next_inputs = tf.concat([next_inputs, zeros_padding], axis=1)
     self.print_shape('next_inputs padding', next_inputs)
     next_inputs.set_shape([self.config.beam_width, self.params['max_decode_length'], inputs.get_shape().as_list()[-1]])
-    outputs = ConvDecoderOutput(
-        logits=logits,
-        predicted_ids=sample_ids)
-    return outputs, enc_output, next_inputs, finished
+    outputs = BeamDecoderOutput(
+        logits=tf.zeros([self.config.beam_width, self.config.vocab_size]),
+        predicted_ids=bs_output.predicted_ids,
+        log_probs=beam_state.log_probs,
+        scores=bs_output.scores,
+        beam_parent_ids=bs_output.beam_parent_ids)
+    return outputs, (enc_output,beam_state), next_inputs, finished
 
 
     
@@ -283,7 +303,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
   def init_params_in_loop(self):
     with tf.variable_scope("decoder"):
       initial_finished, initial_inputs, initial_state = self.initialize()
-      enc_output = initial_state
+      enc_output, beam_sate = initial_state
       logits = self.infer_conv_block(enc_output, initial_inputs)
       
 

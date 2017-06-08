@@ -191,7 +191,7 @@ class Seq2SeqModel(ModelBase):
   def use_beam_search(self):
     """Returns true iff the model should perform beam search.
     """
-    return self.params["inference.beam_search.beam_width"] > 1
+    return self.params["inference.beam_search.beam_width"] > 0
 
   def _preprocess(self, features, labels):
     """Model-specific preprocessing for features and labels:
@@ -285,7 +285,17 @@ class Seq2SeqModel(ModelBase):
     """
     #pylint: disable=R0201
     # Calculate loss per example-timestep of shape [B, T]
-    losses = seq2seq_losses.cross_entropy_sequence_loss(
+    
+    if self.mode == tf.contrib.learn.ModeKeys.INFER:
+      logits = tf.ones_like(tf.transpose(labels["target_ids"][:, 1:], [1, 0]), dtype=tf.float32)
+      logits = tf.expand_dims(logits, axis=-1)
+      logits = tf.tile(logits, [1,1,self.target_vocab_info.total_size])
+      losses = seq2seq_losses.cross_entropy_sequence_loss(
+        logits=logits,
+        targets=tf.transpose(labels["target_ids"][:, 1:], [1, 0]),
+        sequence_length=labels["target_len"] - 1)
+    else:
+      losses = seq2seq_losses.cross_entropy_sequence_loss(
         logits=decoder_output.logits[:, :, :],
         targets=tf.transpose(labels["target_ids"][:, 1:], [1, 0]),
         sequence_length=labels["target_len"] - 1)
@@ -304,16 +314,26 @@ class Seq2SeqModel(ModelBase):
     decoder_output, _, = self.decode(encoder_output, features, labels)
 
     if self.mode == tf.contrib.learn.ModeKeys.INFER:
-      predictions = self._create_predictions(
-          decoder_output=decoder_output, features=features, labels=labels)
+      #losses, loss = self.compute_loss(decoder_output, features, labels)
       loss = None
       train_op = None
+      
+      predictions = self._create_predictions(
+          decoder_output=decoder_output, features=features, labels=labels)
     else:
       losses, loss = self.compute_loss(decoder_output, features, labels)
 
       train_op = None
       if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
-        train_op = self._build_train_op(loss)
+        gradient_multipliers = {}
+        tf.logging.info("get train variable begins")
+        for i in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='model/conv_seq2seq/encode'):
+          if 'encode/W' in i.name or 'encode/pos' in i.name:
+            continue
+          tf.logging.info("tensor %s, name is %s", i, i.name)
+          gradient_multipliers[i] = 1.0/(2*self.params["decoder.params"]["cnn.layers"])
+        tf.logging.info("gradient_multipliers %s",gradient_multipliers)
+        train_op = self._build_train_op(loss, gradient_multipliers=gradient_multipliers)
 
       predictions = self._create_predictions(
           decoder_output=decoder_output,

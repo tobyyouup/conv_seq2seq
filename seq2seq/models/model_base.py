@@ -91,7 +91,7 @@ class ModelBase(Configurable):
 
     return optimizer
 
-  def _build_train_op(self, loss):
+  def _build_train_op(self, loss, gradient_multipliers=None):
     """Creates the training operation"""
     learning_rate_decay_fn = training_utils.create_learning_rate_decay_fn(
         decay_type=self.params["optimizer.lr_decay_type"] or None,
@@ -110,6 +110,7 @@ class ModelBase(Configurable):
         learning_rate_decay_fn=learning_rate_decay_fn,
         clip_gradients=self._clip_gradients,
         optimizer=optimizer,
+        gradient_multipliers=gradient_multipliers,
         summaries=["learning_rate", "loss", "gradients", "gradient_norm"])
 
     return train_op

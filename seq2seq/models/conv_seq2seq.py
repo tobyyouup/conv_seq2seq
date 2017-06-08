@@ -69,7 +69,8 @@ class ConvSeq2Seq(Seq2SeqModel):
         "vocab_target": "", 
         "optimizer.name": "Momentum",
         "optimizer.learning_rate": 0.25,
-        "optimizer.params": {"momentum": 0.99, "use_nesterov": True}, # Arbitrary parameters for the optimizer
+        #"optimizer.params": {"momentum": 0.99, "use_nesterov": True}, # Arbitrary parameters for the optimizer
+        "optimizer.params": { "epsilon": 0.0000008}, # Arbitrary parameters for the optimizer
         "optimizer.lr_decay_type": "exponential_decay",
         "optimizer.lr_decay_steps": 30000,  # one epoch steps
         "optimizer.lr_decay_rate": 0.1,  # lr/10
@@ -154,7 +155,7 @@ class ConvSeq2Seq(Seq2SeqModel):
   def _decode_infer(self, decoder, _encoder_output, features, labels):
     """Runs decoding in inference mode"""
 
-    return decoder(_encoder_output)
+    return decoder(_encoder_output, labels)
 
   @templatemethod("encode")
   def encode(self, features, labels):

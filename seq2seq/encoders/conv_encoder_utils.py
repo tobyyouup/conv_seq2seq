@@ -41,7 +41,7 @@ def linear_mapping_stupid(inputs, out_dim, in_dim=None, dropout=1.0, var_scope_n
     inputs = tf.reshape(inputs, [-1, input_shape_tensor[-1]])
      
     linear_mapping_w = tf.get_variable("linear_mapping_w", [input_shape[-1], out_dim], initializer=tf.random_normal_initializer(mean=0, stddev=tf.sqrt(dropout*1.0/input_shape[-1])))
-    linear_mapping_b = tf.get_variable("linear_mapping_b", [out_dim], initializer=tf.constant_initializer(0.1))
+    linear_mapping_b = tf.get_variable("linear_mapping_b", [out_dim], initializer=tf.zeros_initializer())
       
 
     output = tf.matmul(inputs, linear_mapping_w) + linear_mapping_b
@@ -89,7 +89,7 @@ def conv_encoder_stack(inputs, nhids_list, kwidths_list, dropout_dict, mode):
         kernel_size=kwidths_list[layer_idx],
         padding="SAME",   #should take attention
         weights_initializer=tf.random_normal_initializer(mean=0, stddev=tf.sqrt(4 * dropout_dict['hid'] / (kwidths_list[layer_idx] * next_layer.get_shape().as_list()[-1]))),
-        biases_initializer=tf.constant_initializer(0.1),
+        biases_initializer=tf.zeros_initializer(),
         activation_fn=None,
         scope="conv_layer_"+str(layer_idx))
     next_layer = gated_linear_units(next_layer)
@@ -122,7 +122,7 @@ def conv_decoder_stack(target_embed, enc_output, inputs, nhids_list, kwidths_lis
         kernel_size=kwidths_list[layer_idx],
         padding="VALID",   #should take attention, not SAME but VALID
         weights_initializer=tf.random_normal_initializer(mean=0, stddev=tf.sqrt(4 * dropout_dict['hid'] / (kwidths_list[layer_idx] * next_layer.get_shape().as_list()[-1]))),
-        biases_initializer=tf.constant_initializer(0.1),
+        biases_initializer=tf.zeros_initializer(),
         activation_fn=None,
         scope="conv_layer_"+str(layer_idx))
     

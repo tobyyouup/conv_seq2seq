@@ -108,10 +108,10 @@ class ConvEncoderFairseq(Encoder):
         kwidths_list = parse_list_or_default(self.params["cnn.kwidths"], self.params["cnn.layers"], self.params["cnn.kwidth_default"])
         
         # mapping emb dim to hid dim
-        next_layer = linear_mapping(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
+        next_layer = linear_mapping_weightnorm(next_layer, nhids_list[0], dropout=self.params["embedding_dropout_keep_prob"], var_scope_name="linear_mapping_before_cnn")      
         next_layer = conv_encoder_stack(next_layer, nhids_list, kwidths_list, {'src':self.params["embedding_dropout_keep_prob"], 'hid': self.params["nhid_dropout_keep_prob"]}, mode=self.mode)
         
-        next_layer = linear_mapping(next_layer, embed_size, var_scope_name="linear_mapping_after_cnn")
+        next_layer = linear_mapping_weightnorm(next_layer, embed_size, var_scope_name="linear_mapping_after_cnn")
       ## The encoder stack will receive gradients *twice* for each attention pass: dot product and weighted sum.
       ##cnn = nn.GradMultiply(cnn, 1 / (2 * nattn))  
       cnn_c_output = (next_layer + inputs) * tf.sqrt(0.5) 

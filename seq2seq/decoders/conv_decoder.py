@@ -192,7 +192,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
   def _create_position_embedding(self, lengths, maxlen):
 
     # Slice to size of current sequence
-    pe_slice = self.pos_embed[:maxlen, :]
+    pe_slice = self.pos_embed[2:maxlen+2, :]
     # Replicate encodings for each element in the batch
     batch_size = tf.shape(lengths)[0]
     pe_batch = tf.tile([pe_slice], [batch_size, 1, 1])
@@ -205,7 +205,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     return positions_embed
   
   def add_position_embedding(self, inputs, time):
-    seq_pos_embed = self.pos_embed[0:time+1,:]  
+    seq_pos_embed = self.pos_embed[2:time+1+2,:]  
     seq_pos_embed = tf.expand_dims(seq_pos_embed, axis=0) 
     seq_pos_embed_batch = tf.tile(seq_pos_embed, [self.config.beam_width,1,1])
     
@@ -215,10 +215,10 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
    
     cur_inputs = inputs[:,0:time+1,:] 
     zeros_padding = inputs[:,time+2:,:] 
-    cur_inputs = self.add_position_embedding(cur_inputs, time)
+    cur_inputs_pos = self.add_position_embedding(cur_inputs, time)
     
     enc_output = state 
-    logits = self.infer_conv_block(enc_output, cur_inputs)
+    logits = self.infer_conv_block(enc_output, cur_inputs_pos)
     print('logits', logits.get_shape().as_list())    
     
     sample_ids = tf.cast(tf.argmax(logits, axis=-1), dtypes.int32)

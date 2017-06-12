@@ -73,7 +73,7 @@ class ConvEncoderFairseq(Encoder):
   def _create_position_embedding(self, lengths, maxlen):
 
     # Slice to size of current sequence
-    pe_slice = self.pos_embed[:maxlen, :]
+    pe_slice = self.pos_embed[2:maxlen+2, :]
     # Replicate encodings for each element in the batch
     batch_size = tf.shape(lengths)[0]
     pe_batch = tf.tile([pe_slice], [batch_size, 1, 1])
@@ -82,12 +82,18 @@ class ConvEncoderFairseq(Encoder):
     positions_mask = tf.sequence_mask(
         lengths=lengths, maxlen=maxlen, dtype=tf.float32)
     positions_embed = pe_batch * tf.expand_dims(positions_mask, 2)
+    
+    positions_embed = tf.reverse_sequence(positions_embed, lengths, batch_dim=0, seq_dim=1)  # [[1,2,3,4,PAD,PAD,PAD],[2,3,PAD,PAD,PAD,PAD,PAD]]   [4,2]
+    positions_embed = tf.reverse(positions_embed,[1])  # --> [[4,3,2,1,PAD,PAD,PAD],[3,2,PAD,PAD,PAD,PAD,PAD]] --> [[PAD,PAD,PAD,1,2,3,4],[PAD,PAD,PAD,PAD,PAD,2,3]]
 
     return positions_embed
+   
+
 
   def encode(self, inputs, sequence_length):
     
     embed_size = inputs.get_shape().as_list()[-1]
+    
     if self.params["position_embeddings.enable"]:
       positions_embed = self._create_position_embedding(
           lengths=sequence_length,  # tensor, data lengths

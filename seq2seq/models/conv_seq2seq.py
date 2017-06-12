@@ -143,7 +143,7 @@ class ConvSeq2Seq(Seq2SeqModel):
         config=config,
         target_embedding=self.target_embedding_fairseq(),
         pos_embedding=self.target_pos_embedding_fairseq(),
-        start_tokens=self.target_vocab_info.special_vocab.SEQUENCE_START)
+        start_tokens=self.target_vocab_info.special_vocab.SEQUENCE_END)
 
   def _decode_train(self, decoder, _encoder_output, _features, labels):
     """Runs decoding in training mode"""
@@ -159,6 +159,9 @@ class ConvSeq2Seq(Seq2SeqModel):
 
   @templatemethod("encode")
   def encode(self, features, labels):
+    
+    features["source_ids"] = tf.reverse_sequence(features["source_ids"], features["source_len"], batch_dim=0, seq_dim=1)  # [[1,2,3,4,PAD,PAD,PAD],[2,3,PAD,PAD,PAD,PAD,PAD]]   [4,2]
+    features["source_ids"] = tf.reverse(features["source_ids"],[1])  # --> [[4,3,2,1,PAD,PAD,PAD],[3,2,PAD,PAD,PAD,PAD,PAD]] --> [[PAD,PAD,PAD,1,2,3,4],[PAD,PAD,PAD,PAD,PAD,2,3]]
      
     source_embedded = tf.nn.embedding_lookup(self.source_embedding_fairseq(),
                                              features["source_ids"])

@@ -67,6 +67,7 @@ tf.flags.DEFINE_string("input_pipeline_dev", "{}",
                        """YAML configuration string for the development
                        data input pipeline.""")
 
+
 tf.flags.DEFINE_string("buckets", None,
                        """Buckets input sequences according to these length.
                        A comma-separated list of sequence length buckets, e.g.
@@ -98,7 +99,7 @@ tf.flags.DEFINE_integer("save_checkpoints_secs", None,
 tf.flags.DEFINE_integer("save_checkpoints_steps", None,
                         """Save checkpoints every this many steps.
                         Can not be specified with save_checkpoints_secs.""")
-tf.flags.DEFINE_integer("keep_checkpoint_max", 5,
+tf.flags.DEFINE_integer("keep_checkpoint_max", None,
                         """Maximum number of recent checkpoint files to keep.
                         As new files are created, older files are deleted.
                         If None or 0, all checkpoint files are kept.""")

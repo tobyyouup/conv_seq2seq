@@ -1,8 +1,8 @@
-# Convolutional Sequence to Sequence Learning
+# Convolutional Seq2Seq
 
 This is a tensorflow implementation of the [convolutional seq2seq model](https://arxiv.org/abs/1705.03122) released by [Facebook Fairseq](https://github.com/facebookresearch/fairseq).
 
-This implementation is based on the framework of [Google seq2seq project](https://github.com/google/seq2seq), which has a detailed [documentation](https://google.github.io/seq2seq/) on how to use this framework.
+This implementation is based on the framework of [Google seq2seq project](https://github.com/google/seq2seq), which has a detailed [documentation](https://google.github.io/seq2seq/) on how to use this framework. In this conv seq2seq project, I implement the conv encoder, conv decoder, and attention mechanism, as well as other modules needed by the conv seq2seq model, which is not available in the original seq2seq project. 
 
 
 ## Requirement

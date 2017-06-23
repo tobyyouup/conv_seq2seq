@@ -1,36 +1,119 @@
-[![CircleCI](https://circleci.com/gh/google/seq2seq.svg?style=svg)](https://circleci.com/gh/google/seq2seq)
+# Convolutional Sequence to Sequence Learning
 
----
+This is a tensorflow implementation of the [Facebook Fairseq](https://github.com/facebookresearch/fairseq) [convolutional seq2seq model](https://arxiv.org/abs/1705.03122).
 
-**[READ THE DOCUMENTATION](https://google.github.io/seq2seq)**
+This implementation is based on the framework of [Google seq2seq project](https://github.com/google/seq2seq), which has a detailed [documentation](https://google.github.io/seq2seq/) on how to use this framework.
 
-**[CONTRIBUTING](https://google.github.io/seq2seq/contributing/)**
 
----
+## Requirement
 
-A general-purpose encoder-decoder framework for Tensorflow that can be used for Machine Translation, Text Summarization, Conversational Modeling, Image Captioning, and more.
+- Python 2.7.0+
+- [tensorflow](https://github.com/tensorflow/tensorflow) 1.0+ (this version is strictly required)
+- and their dependencies
 
-![Translation Model](https://3.bp.blogspot.com/-3Pbj_dvt0Vo/V-qe-Nl6P5I/AAAAAAAABQc/z0_6WtVWtvARtMk0i9_AtLeyyGyV6AI4wCLcB/s1600/nmt-model-fast.gif)
+Please follow [seq2seq project](https://google.github.io/seq2seq/) on how to install. 
+## How to use
+For dataset, please follow [seq2seq nmt guides](https://google.github.io/seq2seq/nmt/) to prepare your dataset
 
----
+The following is an example of how to run iwslt de-en translation task.
+### train
+```
+export PYTHONIOENCODING=UTF-8
+export DATA_PATH="your iwslt de-en data path"
 
-The official code used for the [Massive Exploration of Neural Machine Translation Architectures](https://arxiv.org/abs/1703.03906) paper.
+export VOCAB_SOURCE=${DATA_PATH}/vocab.de
+export VOCAB_TARGET=${DATA_PATH}/vocab.en
+export TRAIN_SOURCES=${DATA_PATH}/train.de
+export TRAIN_TARGETS=${DATA_PATH}/train.en
+export DEV_SOURCES=${DATA_PATH}/valid.de
+export DEV_TARGETS=${DATA_PATH}/valid.en
+export TEST_SOURCES=${DATA_PATH}/test.de
+export TEST_TARGETS=${DATA_PATH}/test.en
 
-If you use this code for academic purposes, please cite it as:
+export TRAIN_STEPS=1000000
+
+export MODEL_DIR=${TMPDIR:-/tmp}/nmt_conv_seq2seq
+mkdir -p $MODEL_DIR
+
+python -m bin.train \
+  --config_paths="
+      ./example_configs/conv_seq2seq.yml,
+      ./example_configs/train_seq2seq.yml,
+      ./example_configs/text_metrics_bpe.yml" \
+  --model_params "
+      vocab_source: $VOCAB_SOURCE
+      vocab_target: $VOCAB_TARGET" \
+  --input_pipeline_train "
+    class: ParallelTextInputPipelineFairseq
+    params:
+      source_files:
+        - $TRAIN_SOURCES
+      target_files:
+        - $TRAIN_TARGETS" \
+  --input_pipeline_dev "
+    class: ParallelTextInputPipelineFairseq
+    params:
+       source_files:
+        - $DEV_SOURCES
+       target_files:
+        - $DEV_TARGETS" \
+  --batch_size 32 \
+  --eval_every_n_steps 5000 \
+  --train_steps $TRAIN_STEPS \
+  --output_dir $MODEL_DIR
 
 ```
-@ARTICLE{Britz:2017,
-  author          = {{Britz}, Denny and {Goldie}, Anna and {Luong}, Thang and {Le}, Quoc},
-  title           = "{Massive Exploration of Neural Machine Translation Architectures}",
-  journal         = {ArXiv e-prints},
-  archivePrefix   = "arXiv",
-  eprinttype      = {arxiv},
-  eprint          = {1703.03906},
-  primaryClass    = "cs.CL",
-  keywords        = {Computer Science - Computation and Language},
-  year            = 2017,
-  month           = mar,
-}
+
+### test
+
+```
+export PRED_DIR=${MODEL_DIR}/pred
+mkdir -p ${PRED_DIR}
 ```
 
-This is not an official Google product.
+#### decode with greedy search
+```
+python -m bin.infer \
+  --tasks "
+    - class: DecodeText" \
+  --model_dir $MODEL_DIR \
+  --model_params "
+    inference.beam_search.beam_width: 1 
+    decoder.class: seq2seq.decoders.ConvDecoderFairseq" \
+  --input_pipeline "
+    class: ParallelTextInputPipelineFairseq
+    params:
+      source_files:
+        - $TEST_SOURCES" \
+  > ${PRED_DIR}/predictions.txt
+
+```
+
+#### decode with beam search
+```
+python -m bin.infer \
+  --tasks "
+    - class: DecodeText
+    - class: DumpBeams
+      params:
+        file: ${PRED_DIR}/beams.npz" \
+  --model_dir $MODEL_DIR \
+  --model_params "
+    inference.beam_search.beam_width: 5 
+    decoder.class: seq2seq.decoders.ConvDecoderFairseqBS" \
+  --input_pipeline "
+    class: ParallelTextInputPipelineFairseq
+    params:
+      source_files:
+        - $TEST_SOURCES" \
+  > ${PRED_DIR}/predictions.txt
+```
+
+#### calculate BLEU score
+```
+./bin/tools/multi-bleu.perl ${TEST_TARGETS} < ${PRED_DIR}/predictions.txt
+```
+
+For more detailed instructions, please refer to [seq2seq project](https://google.github.io/seq2seq/).
+
+

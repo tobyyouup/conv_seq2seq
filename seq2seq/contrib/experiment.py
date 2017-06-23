@@ -88,7 +88,6 @@ class Experiment(tf.contrib.learn.Experiment):
       # train_steps_per_iteration = int(self._train_steps / 10)
       train_steps_per_iteration = min(
           self._min_eval_frequency, self._train_steps)
-    
  
     while (not continuous_eval_predicate_fn or
            continuous_eval_predicate_fn(eval_result)):
@@ -111,6 +110,5 @@ class Experiment(tf.contrib.learn.Experiment):
           metrics=self._eval_metrics,
           name="one_pass",
           hooks=self._eval_hooks)
-       
 
     return eval_result, self._maybe_export(eval_result)

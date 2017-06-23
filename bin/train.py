@@ -67,7 +67,6 @@ tf.flags.DEFINE_string("input_pipeline_dev", "{}",
                        """YAML configuration string for the development
                        data input pipeline.""")
 
-
 tf.flags.DEFINE_string("buckets", None,
                        """Buckets input sequences according to these length.
                        A comma-separated list of sequence length buckets, e.g.

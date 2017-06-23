@@ -317,7 +317,7 @@ class Seq2SeqModel(ModelBase):
             continue
           tf.logging.info("tensor %s, name is %s", i, i.name)
           gradient_multipliers[i] = 1.0/(2*self.params["decoder.params"]["cnn.layers"])
-        tf.logging.info("gradient_multipliers %s",gradient_multipliers)
+        #tf.logging.info("gradient_multipliers %s",gradient_multipliers)
         train_op = self._build_train_op(loss, gradient_multipliers=gradient_multipliers)
       
       predictions = self._create_predictions(

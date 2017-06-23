@@ -1,3 +1,5 @@
+export PYTHONIOENCODING=UTF-8
+
 export DATA_PATH=/home/xutan/nmt/seq2seq/data/iwslt14.tokenized.de-en
 
 export VOCAB_SOURCE=${DATA_PATH}/vocab.de
@@ -14,7 +16,6 @@ export TRAIN_STEPS=1000000
 
 export MODEL_DIR=${TMPDIR:-/tmp}/nmt_conv_seq2seq
 mkdir -p $MODEL_DIR
-
 
 '''
 python -m bin.train \
@@ -43,13 +44,12 @@ python -m bin.train \
   --eval_every_n_steps 5000 \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
-'''
 
+'''
 
 
 export PRED_DIR=${MODEL_DIR}/pred
 mkdir -p ${PRED_DIR}
-
 '''
 ###with greedy search
 python -m bin.infer \
@@ -65,7 +65,6 @@ python -m bin.infer \
       source_files:
         - $TEST_SOURCES" \
   > ${PRED_DIR}/predictions.txt
-
 
 '''
 ###with beam search
@@ -88,3 +87,6 @@ python -m bin.infer \
 
 
 ./bin/tools/multi-bleu.perl ${TEST_TARGETS} < ${PRED_DIR}/predictions.txt
+
+
+

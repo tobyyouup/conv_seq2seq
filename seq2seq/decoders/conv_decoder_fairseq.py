@@ -52,7 +52,7 @@ class ConvDecoderOutput(
 
 
 @six.add_metaclass(abc.ABCMeta)
-class ConvDecoder(Decoder, GraphModule, Configurable):
+class ConvDecoderFairseq(Decoder, GraphModule, Configurable):
   """An RNN Decoder that uses attention over an input sequence.
 
   Args:
@@ -94,7 +94,6 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     self.target_embedding=target_embedding 
     self.start_tokens=start_tokens
     self._combiner_fn = locate(self.params["position_embeddings.combiner_fn"])
-    #self.positions_embed = tf.constant(position_encoding(self.params["position_embeddings.num_positions"], target_embedding.get_shape().as_list()[-1]), name="position_encoding") 
     self.pos_embed = pos_embedding
     self.current_inputs = None
     self.initial_state = None
@@ -160,22 +159,6 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     return finished, first_inputs, enc_output
   
   def finalize(self, outputs, final_state):
-    '''
-    # Gather according to beam search result
-    predicted_ids = beam_search.gather_tree(outputs.predicted_ids,
-                                            outputs.beam_parent_ids)
-
-    # We're using a batch size of 1, so we add an extra dimension to
-    # convert tensors to [1, beam_width, ...] shape. This way Tensorflow
-    # doesn't confuse batch_size with beam_width
-    outputs = nest.map_structure(lambda x: tf.expand_dims(x, 1), outputs)
-
-    final_outputs = FinalBeamDecoderOutput(
-        predicted_ids=tf.expand_dims(predicted_ids, 1),
-        beam_search_output=outputs)
-
-    return final_outputs, final_state
-    ''' 
  
     return outputs, final_state
    
@@ -219,16 +202,13 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     
     enc_output = state 
     logits = self.infer_conv_block(enc_output, cur_inputs_pos)
-    print('logits', logits.get_shape().as_list())    
     
     sample_ids = tf.cast(tf.argmax(logits, axis=-1), dtypes.int32)
 
     finished, next_inputs = self.next_inputs(sample_ids=sample_ids)
     next_inputs = tf.reshape(next_inputs, [self.config.beam_width, 1, inputs.get_shape().as_list()[-1]])
-    print('next_inputs.predicted_ids', next_inputs.get_shape().as_list())
     next_inputs = tf.concat([cur_inputs, next_inputs], axis=1)
     next_inputs = tf.concat([next_inputs, zeros_padding], axis=1)
-    self.print_shape('next_inputs padding', next_inputs)
     next_inputs.set_shape([self.config.beam_width, self.params['max_decode_length'], inputs.get_shape().as_list()[-1]])
     outputs = ConvDecoderOutput(
         logits=logits,
@@ -246,15 +226,12 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
         is_training=self.mode == tf.contrib.learn.ModeKeys.INFER)
      
     next_layer = self.conv_block(enc_output, input_embed, False)
-    self.print_shape('logits_output', next_layer) 
     shape = next_layer.get_shape().as_list()  
     
     logits = tf.reshape(next_layer, [-1,shape[-1]])   
     return logits
 
   def conv_block(self, enc_output, input_embed, is_train=True):
-    #with tf.variable_scope("decoder_cnn"):    
-    scope="model/conv_seq2seq/decode/conv_decoder_fairseq/decoder"
     with tf.variable_scope("decoder_cnn"):    
       next_layer = input_embed
       if self.params["cnn.layers"] > 0:
@@ -323,7 +300,6 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     logits = _transpose_batch_time(next_layer)   
 
     sample_ids = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
-    #sample_ids = math_ops.cast(math_ops.argmax(logits, axis=-1), dtypes.int32)
  
     return ConvDecoderOutput(logits=logits, predicted_ids=sample_ids)
 

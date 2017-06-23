@@ -71,10 +71,6 @@ class DumpBeams(InferenceTask):
   def after_run(self, _run_context, run_values):
     fetches_batch = run_values.results
     for fetches in unbatch_dict(fetches_batch):
-      print('beam_search_output.predicted_ids',fetches["beam_search_output.predicted_ids"].shape)
-      print('beam_parent_ids',fetches["beam_search_output.beam_parent_ids"].shape)
-      print('scores',fetches["beam_search_output.scores"].shape)
-      print('log_probs',fetches["beam_search_output.log_probs"].shape)
       self._beam_accum["predicted_ids"].append(fetches[
           "beam_search_output.predicted_ids"])
       self._beam_accum["beam_parent_ids"].append(fetches[

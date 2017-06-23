@@ -6,16 +6,17 @@ model_params:
     cnn.layers: 4
     cnn.nhids: 256,256,256,256
     cnn.kwidths: 3,3,3,3
-  decoder.class: seq2seq.decoders.ConvDecoder
+  decoder.class: seq2seq.decoders.ConvDecoderFairseq
   decoder.params:
     cnn.layers: 3
     cnn.nhids: 256,256,256
     cnn.kwidths: 3,3,3
-#  optimizer.name: Adam
-#  optimizer.params:
-#    epsilon: 0.0000008
-#  optimizer.learning_rate: 0.0001
-#  optimizer.clip_gradients: 5.0
+  optimizer.name: Momentum
+  optimizer.params:
+    momentum: 0.99
+    use_nesterov: True     
+  optimizer.learning_rate: 0.25
+  optimizer.clip_gradients: 0.1
   source.max_seq_len: 50
   source.reverse: false
   target.max_seq_len: 50

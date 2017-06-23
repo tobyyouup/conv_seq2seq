@@ -1,6 +1,6 @@
 # Convolutional Sequence to Sequence Learning
 
-This is a tensorflow implementation of the [Facebook Fairseq](https://github.com/facebookresearch/fairseq) [convolutional seq2seq model](https://arxiv.org/abs/1705.03122).
+This is a tensorflow implementation of the [convolutional seq2seq model](https://arxiv.org/abs/1705.03122) released by [Facebook Fairseq](https://github.com/facebookresearch/fairseq).
 
 This implementation is based on the framework of [Google seq2seq project](https://github.com/google/seq2seq), which has a detailed [documentation](https://google.github.io/seq2seq/) on how to use this framework.
 
@@ -8,15 +8,15 @@ This implementation is based on the framework of [Google seq2seq project](https:
 ## Requirement
 
 - Python 2.7.0+
-- [tensorflow](https://github.com/tensorflow/tensorflow) 1.0+ (this version is strictly required)
+- [Tensorflow](https://github.com/tensorflow/tensorflow) 1.0+ (this version is strictly required)
 - and their dependencies
 
-Please follow [seq2seq project](https://google.github.io/seq2seq/) on how to install. 
+Please follow [seq2seq project](https://google.github.io/seq2seq/) on how to install the Convolutional Sequence to Sequence Learning project. 
 ## How to use
 For dataset, please follow [seq2seq nmt guides](https://google.github.io/seq2seq/nmt/) to prepare your dataset
 
 The following is an example of how to run iwslt de-en translation task.
-### train
+### Train
 ```
 export PYTHONIOENCODING=UTF-8
 export DATA_PATH="your iwslt de-en data path"
@@ -64,7 +64,7 @@ python -m bin.train \
 
 ```
 
-### test
+### Test
 
 ```
 export PRED_DIR=${MODEL_DIR}/pred
@@ -114,6 +114,10 @@ python -m bin.infer \
 ./bin/tools/multi-bleu.perl ${TEST_TARGETS} < ${PRED_DIR}/predictions.txt
 ```
 
+
 For more detailed instructions, please refer to [seq2seq project](https://google.github.io/seq2seq/).
+
+
+Issues and contributions are warmly welcome.  
 
 

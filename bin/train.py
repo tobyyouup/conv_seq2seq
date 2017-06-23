@@ -86,7 +86,7 @@ tf.flags.DEFINE_string("schedule", "continuous_train_and_eval",
 tf.flags.DEFINE_integer("train_steps", None,
                         """Maximum number of training steps to run.
                          If None, train forever.""")
-tf.flags.DEFINE_integer("eval_every_n_steps", 10000,
+tf.flags.DEFINE_integer("eval_every_n_steps", 1000,
                         "Run evaluation on validation data every N steps.")
 
 # RunConfig Flags
@@ -99,7 +99,7 @@ tf.flags.DEFINE_integer("save_checkpoints_secs", None,
 tf.flags.DEFINE_integer("save_checkpoints_steps", None,
                         """Save checkpoints every this many steps.
                         Can not be specified with save_checkpoints_secs.""")
-tf.flags.DEFINE_integer("keep_checkpoint_max", None,
+tf.flags.DEFINE_integer("keep_checkpoint_max", 5,
                         """Maximum number of recent checkpoint files to keep.
                         As new files are created, older files are deleted.
                         If None or 0, all checkpoint files are kept.""")

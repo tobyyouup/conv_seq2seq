@@ -72,6 +72,7 @@ def main(_argv):
 
   if isinstance(FLAGS.input_pipeline, string_types):
     FLAGS.input_pipeline = _maybe_load_yaml(FLAGS.input_pipeline)
+
   input_pipeline_infer = input_pipeline.make_input_pipeline_from_def(
       FLAGS.input_pipeline, mode=tf.contrib.learn.ModeKeys.INFER,
       shuffle=False, num_epochs=1)

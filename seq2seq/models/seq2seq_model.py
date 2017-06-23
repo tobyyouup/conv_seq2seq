@@ -101,8 +101,6 @@ class Seq2SeqModel(ModelBase):
         zip(decoder_output._fields, decoder_output))
     decoder_output_flat = _flatten_dict(output_dict)
     
-    #for k, v in decoder_output_flat.items():
-    #  print(k, v.get_shape().as_list())
     decoder_output_flat = {
         k: _transpose_batch_time(v)
         for k, v in decoder_output_flat.items()
@@ -111,15 +109,12 @@ class Seq2SeqModel(ModelBase):
 
     # If we predict the ids also map them back into the vocab and process them
     if "predicted_ids" in predictions.keys():
-      print('predicted_ids shape', predictions["predicted_ids"].get_shape().as_list())
       vocab_tables = graph_utils.get_dict_from_collection("vocab_tables")
       target_id_to_vocab = vocab_tables["target_id_to_vocab"]
       predicted_tokens = target_id_to_vocab.lookup(
           tf.to_int64(predictions["predicted_ids"]))
       # Raw predicted tokens
       predictions["predicted_tokens"] = predicted_tokens
-    #for k, v in predictions.items():
-    #  print(k, v.get_shape().as_list())
 
     return predictions
 
@@ -286,16 +281,7 @@ class Seq2SeqModel(ModelBase):
     #pylint: disable=R0201
     # Calculate loss per example-timestep of shape [B, T]
     
-    if self.mode == tf.contrib.learn.ModeKeys.INFER:
-      logits = tf.ones_like(tf.transpose(labels["target_ids"][:, 1:], [1, 0]), dtype=tf.float32)
-      logits = tf.expand_dims(logits, axis=-1)
-      logits = tf.tile(logits, [1,1,self.target_vocab_info.total_size])
-      losses = seq2seq_losses.cross_entropy_sequence_loss(
-        logits=logits,
-        targets=tf.transpose(labels["target_ids"][:, 1:], [1, 0]),
-        sequence_length=labels["target_len"] - 1)
-    else:
-      losses = seq2seq_losses.cross_entropy_sequence_loss(
+    losses = seq2seq_losses.cross_entropy_sequence_loss(
         logits=decoder_output.logits[:, :, :],
         targets=tf.transpose(labels["target_ids"][:, 1:], [1, 0]),
         sequence_length=labels["target_len"] - 1)
@@ -314,7 +300,6 @@ class Seq2SeqModel(ModelBase):
     decoder_output, _, = self.decode(encoder_output, features, labels)
 
     if self.mode == tf.contrib.learn.ModeKeys.INFER:
-      #losses, loss = self.compute_loss(decoder_output, features, labels)
       loss = None
       train_op = None
       
@@ -326,7 +311,7 @@ class Seq2SeqModel(ModelBase):
       train_op = None
       if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
         gradient_multipliers = {}
-        tf.logging.info("get train variable begins")
+        # multiply the gradient by 1.0/(2*#att_layer)       
         for i in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='model/conv_seq2seq/encode'):
           if 'encode/W' in i.name or 'encode/pos' in i.name:
             continue
@@ -334,7 +319,7 @@ class Seq2SeqModel(ModelBase):
           gradient_multipliers[i] = 1.0/(2*self.params["decoder.params"]["cnn.layers"])
         tf.logging.info("gradient_multipliers %s",gradient_multipliers)
         train_op = self._build_train_op(loss, gradient_multipliers=gradient_multipliers)
-
+      
       predictions = self._create_predictions(
           decoder_output=decoder_output,
           features=features,

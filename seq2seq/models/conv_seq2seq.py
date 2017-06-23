@@ -63,7 +63,7 @@ class ConvSeq2Seq(Seq2SeqModel):
         "embedding.share": False,
         "position_embeddings.num_positions": 100,
         "inference.beam_search.beam_width": 0,
-        "inference.beam_search.length_penalty_weight": 0.0,
+        "inference.beam_search.length_penalty_weight": 1.0,
         "inference.beam_search.choose_successors_fn": "choose_top_k",
         "vocab_source": "",
         "vocab_target": "", 
@@ -72,9 +72,9 @@ class ConvSeq2Seq(Seq2SeqModel):
         "optimizer.params": {"momentum": 0.99, "use_nesterov": True}, # Arbitrary parameters for the optimizer
         #"optimizer.params": { "epsilon": 0.0000008}, # Arbitrary parameters for the optimizer
         "optimizer.lr_decay_type": "exponential_decay",
-        "optimizer.lr_decay_steps": 30000,  # one epoch steps
-        "optimizer.lr_decay_rate": 0.1,  # lr/10
-        "optimizer.lr_start_decay_at": 570000,  # start annealing epoch 20,  19*epoch steps
+        "optimizer.lr_decay_steps": 5000,  # one epoch steps
+        "optimizer.lr_decay_rate": 0.9,  
+        "optimizer.lr_start_decay_at": 0,  # start annealing epoch 0
         "optimizer.lr_stop_decay_at": tf.int32.max,
         "optimizer.lr_min_learning_rate": 1e-5,
         "optimizer.lr_staircase": True,
@@ -166,8 +166,6 @@ class ConvSeq2Seq(Seq2SeqModel):
     source_embedded = tf.nn.embedding_lookup(self.source_embedding_fairseq(),
                                              features["source_ids"])
     encoder_fn = self.encoder_class(self.params["encoder.params"], self.mode, self.source_pos_embedding_fairseq())
-    #print('eval_feature_shape', source_embedded.get_shape().as_list())
-    #print('eval_label_shape', labels["target_ids"].get_shape().as_list())
     return encoder_fn(source_embedded, features["source_len"])
 
   @templatemethod("decode")

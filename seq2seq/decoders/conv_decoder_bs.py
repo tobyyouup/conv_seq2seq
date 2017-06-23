@@ -184,7 +184,7 @@ class ConvDecoder(Decoder, GraphModule, Configurable):
     # convert tensors to [1, beam_width, ...] shape. This way Tensorflow
     # doesn't confuse batch_size with beam_width
     outputs = nest.map_structure(lambda x: tf.expand_dims(x, 1), outputs)
-
+    
     final_outputs = FinalBeamDecoderOutput(
         predicted_ids=tf.expand_dims(predicted_ids, 1),
         beam_search_output=outputs)

@@ -126,13 +126,16 @@ def length_penalty(sequence_lengths, penalty_factor):
   return tf.div((5. + tf.to_float(sequence_lengths))**penalty_factor, (5. + 1.)
                 **penalty_factor)
 
+def length_penalty_fairseq(sequence_lengths, penalty_factor):
+  return (tf.to_float(sequence_lengths))**penalty_factor
+
 
 def hyp_score(log_probs, sequence_lengths, config):
   """Calculates scores for beam search hypotheses.
   """
 
   # Calculate the length penality
-  length_penality_ = length_penalty(
+  length_penality_ = length_penalty_fairseq(
       sequence_lengths=sequence_lengths,
       penalty_factor=config.length_penalty_weight)
 

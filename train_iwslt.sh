@@ -1,4 +1,4 @@
-export DATA_PATH=/datadrive/xutan/nmt/seq2seq/data/iwslt14.tokenized.de-en
+export DATA_PATH=/home/xutan/nmt/seq2seq/data/iwslt14.tokenized.de-en
 
 export VOCAB_SOURCE=${DATA_PATH}/vocab.de
 export VOCAB_TARGET=${DATA_PATH}/vocab.en
@@ -12,11 +12,11 @@ export TEST_TARGETS=${DATA_PATH}/test.en
 export TRAIN_STEPS=1000000
 
 
-export MODEL_DIR=/dev/nmt/nmt_tutorial_iwslt_para
+export MODEL_DIR=/dev/nmt/nmt_tutorial_iwslt_decay
 mkdir -p $MODEL_DIR
 
 
-
+'''
 python -m bin.train \
   --config_paths="
       ./example_configs/iwslt.yml,
@@ -26,21 +26,21 @@ python -m bin.train \
       vocab_source: $VOCAB_SOURCE
       vocab_target: $VOCAB_TARGET" \
   --input_pipeline_train "
-    class: ParallelTextInputPipeline
+    class: ParallelTextInputPipelineFairseq
     params:
       source_files:
         - $TRAIN_SOURCES
       target_files:
         - $TRAIN_TARGETS" \
   --input_pipeline_dev "
-    class: ParallelTextInputPipeline
+    class: ParallelTextInputPipelineFairseq
     params:
        source_files:
         - $DEV_SOURCES
        target_files:
         - $DEV_TARGETS" \
   --batch_size 32 \
-  --eval_every_n_steps 10000 \
+  --eval_every_n_steps 5000 \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR
 '''
@@ -52,17 +52,16 @@ mkdir -p ${PRED_DIR}
 python -m bin.infer \
   --tasks "
     - class: DecodeText
-    - class: DumpBeams
-      params:
-        file: ${PRED_DIR}/beams.npz" \
+#    - class: DumpBeams
+#      params:
+#        file: ${PRED_DIR}/beams.npz" \
   --model_dir $MODEL_DIR \
   --model_params "
-    inference.beam_search.beam_width: 5" \
+    inference.beam_search.beam_width: 1" \
   --input_pipeline "
-    class: ParallelTextInputPipeline
+    class: ParallelTextInputPipelineFairseq
     params:
       source_files:
         - $TEST_SOURCES" \
   > ${PRED_DIR}/predictions.txt
-'''
 
